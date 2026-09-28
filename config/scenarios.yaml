@@ -1,0 +1,65 @@
+# Edge-Guardian Scenario Configuration
+# All fault scenarios and their default parameters.
+# These are physics-informed simulation scenarios, not validated transformer models.
+
+scenarios:
+  NORMAL:
+    description: "Normal operating conditions"
+    parameters: {}
+
+  FEEDER_RESISTANCE_INCREASE:
+    description: "Feeder cable resistance increase due to aging, corrosion, or loose connections"
+    parameters:
+      resistance_increase_percent:
+        default: 25.0
+        min: 5.0
+        max: 100.0
+        description: "Percentage increase in feeder resistance"
+
+  OVERLOAD:
+    description: "Load exceeds normal operating envelope"
+    parameters:
+      overload_percent:
+        default: 130.0
+        min: 105.0
+        max: 200.0
+        description: "Load as percentage of rated capacity"
+
+  THERMAL_STRESS:
+    description: "Elevated ambient temperature or sustained high loading"
+    parameters:
+      ambient_increase_c:
+        default: 15.0
+        min: 5.0
+        max: 40.0
+        description: "Increase in ambient temperature (°C)"
+
+  EFFICIENCY_DEGRADATION:
+    description: "Gradual efficiency loss due to insulation degradation or core losses"
+    parameters:
+      efficiency_reduction_percent:
+        default: 5.0
+        min: 1.0
+        max: 20.0
+        description: "Percentage reduction in transformer efficiency"
+
+# Health thresholds
+health:
+  warning_threshold: 70
+  critical_threshold: 40
+
+# Anomaly detection
+anomaly:
+  threshold_method: percentile
+  threshold_percentile: 97
+
+# Classifier
+classifier:
+  unknown_confidence_threshold: 0.60
+
+# Simulation
+simulation:
+  default_assets: 20
+  sample_interval_seconds: 1
+  normal_duration_seconds: 300
+  fault_duration_seconds: 120
