@@ -12,6 +12,7 @@ from data.generator import (
     generate_fleet_configs,
     _generate_single_sample,
     _generate_sample_with_physics,
+    _generate_load_profile_value,
     calculate_physics,
     extract_feature_vector,
     generate_training_dataset,
@@ -53,12 +54,12 @@ def initialize_demo_backend():
 
         # Historical samples for dashboard trends
         for step in range(50):
-            # Vary load over time
-            load = (
-                50.0
-                + 30.0 * np.sin(step / 10.0)
-                + float(rng.normal(0, 2))
-            )
+            # Use the SAME load profile the anomaly model was trained on, so
+            # healthy assets stay in-distribution. The previous custom profile
+            # (50 + 30*sin) swung 20-80% — load levels the model never saw in
+            # training — which flagged normal assets as false anomalies and made
+            # most of the fleet look unhealthy.
+            load = _generate_load_profile_value(step, rng)
 
             # Inject historical fault scenarios
             scenario = FaultScenario.NORMAL
