@@ -221,7 +221,8 @@ class EdgeGuardianAgent:
 
     @staticmethod
     def _infer_scenario(q: str):
-        nums = _NUM_RE.findall(q)
+        cleaned_q = _ASSET_RE.sub(" ", q)
+        nums = _NUM_RE.findall(cleaned_q)
         amount = float(nums[0]) if nums else 20.0
         if "resistance" in q or "feeder" in q:
             return "FEEDER_RESISTANCE_INCREASE", {"resistance_increase_percent": amount}

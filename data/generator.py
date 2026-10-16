@@ -291,10 +291,21 @@ def _generate_sample_with_physics(
     turns_ratio = 0.038  # ~11kV to ~415V (typical distribution)
     secondary_voltage = (feeder_voltage - voltage_drop) * turns_ratio
 
-    # Secondary current (power balance approximation)
+    # Feeder losses and simplified power balance
+    feeder_loss = calculate_resistive_loss(
+        feeder_current, effective_resistance
+    )
+    feeder_input_power = feeder_current * feeder_voltage
+    available_power = max(0.0, feeder_input_power - feeder_loss)
+
+    # Secondary current reflects feeder losses and transformer efficiency
     if secondary_voltage > 0:
-        secondary_current = (feeder_current * feeder_voltage * config.baseline_efficiency
-                            * effect.efficiency_multiplier) / secondary_voltage
+        output_power = (
+            available_power
+            * config.baseline_efficiency
+            * effect.efficiency_multiplier
+        )
+        secondary_current = output_power / secondary_voltage
     else:
         secondary_current = 0.0
 
@@ -302,9 +313,6 @@ def _generate_sample_with_physics(
     # Normal industrial PF: 0.85-0.95 with slight variation
     base_pf = 0.90 + 0.05 * math.sin(2 * math.pi * load_fraction)
     pf = max(0.70, min(0.99, base_pf + float(rng.normal(0, 0.01))))
-
-    # ── Losses ─────────────────────────────────────────────────────────
-    feeder_loss = calculate_resistive_loss(feeder_current, effective_resistance)
 
     # ── Temperature ────────────────────────────────────────────────────
     # Ambient with scenario adjustment

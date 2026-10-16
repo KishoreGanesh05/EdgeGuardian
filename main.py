@@ -220,6 +220,18 @@ def _fleet_line(metrics: dict) -> str:
     )
 
 
+def _window_mean(history: List[float], window: int, fallback: float) -> Tuple[float, int]:
+    """Mean of the last `window` history samples (and how many were used).
+
+    Single efficiency samples are dominated by measurement noise, so the demo
+    reports window averages. Falls back to `fallback` if history is empty.
+    """
+    samples = history[-window:] if window > 0 else []
+    if not samples:
+        return fallback, 0
+    return sum(samples) / len(samples), len(samples)
+
+
 def run_demo(
     asset_count: int = DEMO_ASSET_COUNT,
     target_asset: str = DEMO_TARGET_ASSET,
@@ -279,7 +291,14 @@ def run_demo(
           f"(is_anomaly={target_after.is_anomaly})")
     print(f"  Fault class:   {target_after.fault_class} "
           f"(confidence={target_after.fault_confidence})")
-    print(f"  Efficiency:    {target_before.efficiency:.4f} -> {target_after.efficiency:.4f}")
+    eff_before, n_before = _window_mean(
+        target_before.efficiency_history, DEMO_NORMAL_STEPS, target_before.efficiency
+    )
+    eff_after, n_after = _window_mean(
+        target_after.efficiency_history, DEMO_FAULT_STEPS, target_after.efficiency
+    )
+    print(f"  Efficiency:    {eff_before:.4f} -> {eff_after:.4f} "
+          f"(window averages, {n_before} normal / {n_after} fault samples)")
     print(f"  Temperature:   {target_before.temperature:.1f}°C -> {target_after.temperature:.1f}°C")
     print(f"  Health:        {target_before.health_index:.1f} ({target_before.health_state.value})"
           f" -> {target_after.health_index:.1f} ({target_after.health_state.value})")

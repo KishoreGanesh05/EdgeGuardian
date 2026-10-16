@@ -11,7 +11,7 @@ def test_dashboard_initialization():
     fleet, simulator = initialize_demo_backend()
     assert fleet is not None
     assert simulator is not None
-    assert fleet.get_fleet_metrics()["asset_count"] == 20
+    assert fleet.get_fleet_metrics()["asset_count"] == 25
 
 def test_dashboard_imports():
     """Verify Streamlit modules can be imported."""

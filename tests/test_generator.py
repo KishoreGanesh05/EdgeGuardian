@@ -396,6 +396,43 @@ class TestFaultImpactOnFeatures:
         # Temperature should increase (index 5)
         assert fault[5] > normal[5], "Temperature should increase with overload"
 
+    def test_overload_does_not_artificially_increase_efficiency(self, config):
+        """Overload must not improve efficiency due to inconsistent power balance."""
+        normal = self._get_mean_features(config, FaultScenario.NORMAL)
+        fault = self._get_mean_features(
+            config,
+            FaultScenario.OVERLOAD,
+            overload_percent=130.0,
+        )
+
+        # Efficiency is feature index 4.
+        assert fault[4] <= normal[4], (
+            f"Overload unexpectedly increased efficiency: "
+            f"normal={normal[4]:.4f}, overload={fault[4]:.4f}"
+        )
+
+    def test_noise_free_overload_efficiency_is_lower(self, config, monkeypatch):
+        """With measurement noise disabled, every overload sample is less efficient.
+
+        Same seed => same underlying load profile, so the only difference per
+        sample is the extra overload current and its I²R feeder loss.
+        """
+        monkeypatch.setattr("data.generator.MEASUREMENT_NOISE_PERCENT", 0.0)
+
+        def efficiencies(scenario, **params):
+            samples = generate_telemetry(
+                config, duration_seconds=60, seed=42,
+                scenario=scenario, scenario_params=params,
+            )
+            return [calculate_physics(s, config).efficiency for s in samples]
+
+        normal = efficiencies(FaultScenario.NORMAL)
+        overload = efficiencies(FaultScenario.OVERLOAD, overload_percent=160.0)
+
+        assert len(normal) == len(overload) > 0
+        for i, (n, o) in enumerate(zip(normal, overload)):
+            assert o < n, f"sample {i}: overload={o:.6f} not below normal={n:.6f}"
+
     def test_thermal_stress_changes_temperature(self, config):
         """Thermal stress should increase temperature."""
         normal = self._get_mean_features(config, FaultScenario.NORMAL)

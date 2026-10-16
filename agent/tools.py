@@ -14,6 +14,8 @@ agent must never read raw datasets or recompute physics itself (plan §34).
 from __future__ import annotations
 
 import logging
+import math
+import statistics
 from typing import Dict, List, Optional
 
 from data.models import FaultScenario, HealthState
@@ -46,6 +48,48 @@ def _round(value, ndigits: int = 4):
     if isinstance(value, float):
         return round(value, ndigits)
     return value
+
+
+# Trend tolerances. A trend is the mean of the second half of a history minus
+# the mean of the first half; "flat" means that difference is too small to
+# distinguish under the tolerance, NOT that the asset is physically unchanged.
+#
+# Efficiency samples are a ratio of four independently noised CT/VT readings
+# (per-sample sigma ~0.008 at 0.5% measurement noise), so a fixed threshold is
+# not enough: the half-mean difference must also exceed EFFICIENCY_TREND_Z
+# standard errors. EFFICIENCY_TREND_TOLERANCE is a floor in efficiency-fraction
+# units. Other metrics keep their original (exact-change) sensitivity.
+DEFAULT_TREND_TOLERANCE = 1e-9
+EFFICIENCY_TREND_TOLERANCE = 0.002
+EFFICIENCY_TREND_Z = 2.0
+
+
+def _trend(
+    seq: List[float],
+    tolerance: float = DEFAULT_TREND_TOLERANCE,
+    noise_z: Optional[float] = None,
+) -> str:
+    """Classify a history as rising/falling/flat by comparing half means.
+
+    If noise_z is given and each half has >= 2 points, the threshold is
+    widened to noise_z standard errors of the half-mean difference.
+    """
+    if len(seq) < 2:
+        return "insufficient_data"
+    half = len(seq) // 2
+    first, second = seq[:half], seq[-half:]
+    delta = statistics.fmean(second) - statistics.fmean(first)
+
+    threshold = tolerance
+    if noise_z is not None and half >= 2:
+        std_err = math.sqrt(
+            statistics.variance(first) / half + statistics.variance(second) / half
+        )
+        threshold = max(threshold, noise_z * std_err)
+
+    if abs(delta) <= threshold:
+        return "flat"
+    return "rising" if delta > 0 else "falling"
 
 
 class AgentTools:
@@ -115,14 +159,6 @@ class AgentTools:
         def tail(seq: List[float]) -> List[float]:
             return [_round(v, 4) for v in seq[-max_points:]]
 
-        def trend(seq: List[float]) -> str:
-            if len(seq) < 2:
-                return "insufficient_data"
-            delta = seq[-1] - seq[0]
-            if abs(delta) < 1e-9:
-                return "flat"
-            return "rising" if delta > 0 else "falling"
-
         return {
             "asset_id": asset_id,
             "points": min(len(s.health_history), max_points),
@@ -131,10 +167,14 @@ class AgentTools:
             "efficiency_history": tail(s.efficiency_history),
             "temperature_history": tail(s.temperature_history),
             "trends": {
-                "health": trend(s.health_history),
-                "anomaly": trend(s.anomaly_history),
-                "efficiency": trend(s.efficiency_history),
-                "temperature": trend(s.temperature_history),
+                "health": _trend(s.health_history),
+                "anomaly": _trend(s.anomaly_history),
+                "efficiency": _trend(
+                    s.efficiency_history,
+                    tolerance=EFFICIENCY_TREND_TOLERANCE,
+                    noise_z=EFFICIENCY_TREND_Z,
+                ),
+                "temperature": _trend(s.temperature_history),
             },
         }
 
